@@ -53,21 +53,41 @@ def init_model(model_path='emotion_model.h5'):
     """Initialize the emotion detection model."""
     global model, face_cascade
     
-    # Load model
-    if os.path.exists(model_path):
-        print(f"Loading model from {model_path}...")
-        model = keras.models.load_model(model_path)
-    else:
-        print(f"Model not found at {model_path}. Creating untrained model structure.")
-        model = create_emotion_model(input_shape=(48, 48, 1), num_classes=7)
-    
-    # Load face cascade
-    cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-    if not os.path.exists(cascade_path):
-        raise FileNotFoundError(f"Face cascade not found: {cascade_path}")
-    
-    face_cascade = cv2.CascadeClassifier(cascade_path)
-    print("Model and face cascade loaded successfully!")
+    try:
+        # Load model
+        if os.path.exists(model_path):
+            print(f"Loading model from {model_path}...")
+            model = keras.models.load_model(model_path)
+            print("Model loaded successfully!")
+        else:
+            print(f"WARNING: Model not found at {model_path}. Creating untrained model structure.")
+            model = create_emotion_model(input_shape=(48, 48, 1), num_classes=7)
+            print("Untrained model structure created.")
+        
+        # Load face cascade
+        cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        print(f"Looking for face cascade at: {cascade_path}")
+        
+        if not os.path.exists(cascade_path):
+            # Try alternative path
+            alt_path = '/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml'
+            if os.path.exists(alt_path):
+                cascade_path = alt_path
+                print(f"Using alternative cascade path: {cascade_path}")
+            else:
+                raise FileNotFoundError(f"Face cascade not found at {cascade_path} or {alt_path}")
+        
+        face_cascade = cv2.CascadeClassifier(cascade_path)
+        
+        # Verify cascade loaded correctly
+        if face_cascade.empty():
+            raise ValueError(f"Failed to load face cascade from {cascade_path}")
+        
+        print("Model and face cascade loaded successfully!")
+        
+    except Exception as e:
+        print(f"ERROR initializing model: {e}")
+        raise
 
 
 def preprocess_face(face_roi, target_size=(48, 48)):
@@ -140,6 +160,13 @@ def detect_emotion_from_image(image_data):
     global model, face_cascade
     
     try:
+        # Ensure model and face_cascade are initialized
+        if model is None or face_cascade is None:
+            print("Model or face_cascade not initialized. Initializing now...")
+            init_model()
+            if model is None or face_cascade is None:
+                return {'error': 'Failed to initialize model or face cascade', 'face_detected': False}
+        
         # Remove data URL prefix if present
         if ',' in image_data:
             image_data = image_data.split(',')[1]
@@ -214,9 +241,16 @@ def index():
 def detect_emotion():
     """API endpoint for emotion detection."""
     try:
-        data = request.get_json()
-        image_data = data.get('image')
+        # Ensure model is initialized
+        if model is None or face_cascade is None:
+            print("Model not initialized in detect_emotion endpoint. Initializing...")
+            init_model()
         
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        image_data = data.get('image')
         if not image_data:
             return jsonify({'error': 'No image data provided'}), 400
         
@@ -224,7 +258,26 @@ def detect_emotion():
         return jsonify(result)
     
     except Exception as e:
+        print(f"Error in detect_emotion endpoint: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    """Health check endpoint to verify model and face cascade are loaded."""
+    status = {
+        'status': 'ok',
+        'model_loaded': model is not None,
+        'face_cascade_loaded': face_cascade is not None,
+        'model_path_exists': os.path.exists('emotion_model.h5')
+    }
+    
+    if face_cascade is not None:
+        status['face_cascade_empty'] = face_cascade.empty()
+    
+    return jsonify(status)
 
 
 @app.route('/api/music/<emotion>', methods=['GET'])
@@ -484,10 +537,16 @@ def download_youtube():
         return jsonify({'error': str(e)}), 500
 
 
-if __name__ == '__main__':
-    # Initialize model on startup
+# Initialize model when module is imported (works with gunicorn too)
+# This ensures the model is loaded before any requests are handled
+try:
     init_model()
-    
+except Exception as e:
+    print(f"WARNING: Failed to initialize model on startup: {e}")
+    print("Model will be initialized on first request.")
+
+
+if __name__ == '__main__':
     # Get port and host from environment variables (for production deployment)
     port = int(os.environ.get('PORT', 5000))
     host = os.environ.get('HOST', '0.0.0.0')
