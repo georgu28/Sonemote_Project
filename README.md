@@ -1,4 +1,4 @@
-# FaceTune - Emotion-Based Music Player
+# Sonemote - Emotion-Based Music Player
 
 Real-time emotion detection from your webcam that automatically plays music matching your emotions.
 
@@ -8,7 +8,7 @@ Real-time emotion detection from your webcam that automatically plays music matc
 
 ```bash
 git clone <repository-url>
-cd FaceTune_Project
+cd Sonemote_Project
 
 # Create virtual environment
 python -m venv venv
@@ -114,7 +114,7 @@ This uses mock predictions so you can test camera, face detection, and music pla
 ## Project Structure
 
 ```
-FaceTune_Project/
+Sonemote_Project/
 ├── data/              # Training/test images
 ├── src/               # Source code
 │   ├── train.py      # Train the model

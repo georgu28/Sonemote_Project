@@ -1,6 +1,6 @@
-# FaceTune Web Application
+# Sonemote Web Application
 
-A beautiful web interface for the FaceTune emotion-based music player. This Flask webapp allows users to interact with the emotion detection model through their browser, manage music playlists, and enjoy real-time emotion-based music playback.
+A beautiful web interface for the Sonemote emotion-based music player. This Flask webapp allows users to interact with the emotion detection model through their browser, manage music playlists, and enjoy real-time emotion-based music playback.
 
 ## Features
 
@@ -185,7 +185,7 @@ Navigate to: **http://localhost:5000**
 ### Project Structure
 
 ```
-FaceTune_Project/
+Sonemote_Project/
 ├── app.py                 # Flask backend application
 ├── templates/
 │   └── index.html        # Main HTML template

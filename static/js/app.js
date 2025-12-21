@@ -1,6 +1,6 @@
-// FaceTune Web App JavaScript
+// Sonemote Web App JavaScript
 
-class FaceTuneApp {
+class SonemoteApp {
     constructor() {
         this.video = document.getElementById('video');
         this.canvas = document.getElementById('canvas');
@@ -435,6 +435,6 @@ class FaceTuneApp {
 // Initialize app when DOM is loaded
 let app;
 document.addEventListener('DOMContentLoaded', () => {
-    app = new FaceTuneApp();
+    app = new SonemoteApp();
 });
 

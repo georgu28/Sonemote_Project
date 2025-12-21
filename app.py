@@ -1,5 +1,5 @@
 """
-Flask web application for FaceTune - Emotion-Based Music Player
+Flask web application for Sonemote - Emotion-Based Music Player
 Provides web interface with camera feed and music management.
 """
 
@@ -495,7 +495,7 @@ if __name__ == '__main__':
     
     # Run Flask app
     print("\n" + "="*60)
-    print("FaceTune Web App Starting...")
+    print("Sonemote Web App Starting...")
     print("="*60)
     print(f"Open your browser and navigate to: http://localhost:{port}")
     if host == '0.0.0.0':

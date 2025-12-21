@@ -1,6 +1,6 @@
 # Music Directory
 
-This directory contains emotion-specific music folders. The FaceTune application will automatically play music from the appropriate folder based on the detected emotion.
+This directory contains emotion-specific music folders. The Sonemote application will automatically play music from the appropriate folder based on the detected emotion.
 
 ## Directory Structure
 

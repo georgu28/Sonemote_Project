@@ -1,6 +1,6 @@
-# FaceTune Web App - Deployment Guide
+# Sonemote Web App - Deployment Guide
 
-This guide covers how to deploy the FaceTune web application to various hosting platforms so it's accessible to everyone via a public URL.
+This guide covers how to deploy the Sonemote web application to various hosting platforms so it's accessible to everyone via a public URL.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ Before deploying, ensure you have:
    - Click "New +" → "Web Service"
    - Connect your repository
    - Configure:
-     - **Name**: `facetune-app` (or your choice)
+     - **Name**: `sonemote-app` (or your choice)
      - **Environment**: `Python 3`
      - **Build Command**: `pip install -r requirements.txt`
      - **Start Command**: `python app.py` (or `gunicorn app:app` for production)
@@ -50,7 +50,7 @@ Before deploying, ensure you have:
    ```yaml
    services:
      - type: web
-       name: facetune-app
+       name: sonemote-app
        env: python
        buildCommand: |
          apt-get update && apt-get install -y ffmpeg
@@ -62,7 +62,7 @@ Before deploying, ensure you have:
 6. **Deploy**
    - Click "Create Web Service"
    - Render will build and deploy your app
-   - Your app will be available at: `https://facetune-app.onrender.com`
+   - Your app will be available at: `https://sonemote-app.onrender.com`
 
 **Note**: Free tier on Render spins down after inactivity. Consider paid tier for production.
 
@@ -131,7 +131,7 @@ Before deploying, ensure you have:
 2. **Login and Create App**
    ```bash
    heroku login
-   heroku create facetune-app
+   heroku create sonemote-app
    ```
 
 3. **Create Procfile**
@@ -257,8 +257,8 @@ env/
 #### Build and Run Locally:
 
 ```bash
-docker build -t facetune-app .
-docker run -p 5000:5000 facetune-app
+docker build -t sonemote-app .
+docker run -p 5000:5000 sonemote-app
 ```
 
 #### Deploy to Cloud:
@@ -298,8 +298,8 @@ Deploy to any VPS provider (DigitalOcean Droplet, Linode, Vultr, etc.).
 3. **Clone and Set Up App**
    ```bash
    # Clone your repository
-   git clone https://github.com/yourusername/facetune-project.git
-   cd facetune-project
+   git clone https://github.com/yourusername/sonemote-project.git
+   cd sonemote-project
    
    # Create virtual environment
    python3 -m venv venv
@@ -319,18 +319,18 @@ Deploy to any VPS provider (DigitalOcean Droplet, Linode, Vultr, etc.).
    ```
 
 5. **Create Systemd Service**
-   Create `/etc/systemd/system/facetune.service`:
+   Create `/etc/systemd/system/sonemote.service`:
    ```ini
    [Unit]
-   Description=FaceTune Web App
+   Description=Sonemote Web App
    After=network.target
 
    [Service]
    User=www-data
    Group=www-data
-   WorkingDirectory=/root/facetune-project
-   Environment="PATH=/root/facetune-project/venv/bin"
-   ExecStart=/root/facetune-project/venv/bin/gunicorn -c gunicorn_config.py app:app
+   WorkingDirectory=/root/sonemote-project
+   Environment="PATH=/root/sonemote-project/venv/bin"
+   ExecStart=/root/sonemote-project/venv/bin/gunicorn -c gunicorn_config.py app:app
    Restart=always
 
    [Install]
@@ -340,12 +340,12 @@ Deploy to any VPS provider (DigitalOcean Droplet, Linode, Vultr, etc.).
 6. **Start Service**
    ```bash
    systemctl daemon-reload
-   systemctl start facetune
-   systemctl enable facetune
+   systemctl start sonemote
+   systemctl enable sonemote
    ```
 
 7. **Configure Nginx**
-   Create `/etc/nginx/sites-available/facetune`:
+   Create `/etc/nginx/sites-available/sonemote`:
    ```nginx
    server {
        listen 80;
@@ -363,7 +363,7 @@ Deploy to any VPS provider (DigitalOcean Droplet, Linode, Vultr, etc.).
 
 8. **Enable Site**
    ```bash
-   ln -s /etc/nginx/sites-available/facetune /etc/nginx/sites-enabled/
+   ln -s /etc/nginx/sites-available/sonemote /etc/nginx/sites-enabled/
    nginx -t
    systemctl restart nginx
    ```
