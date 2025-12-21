@@ -1,6 +1,6 @@
 # Sonemote - Emotion-Based Music Player
 
-Real-time emotion detection from your webcam that automatically plays music matching your emotions.
+Real-time emotion detection from webcam that automatically plays music matching your emotions.
 
 ## Quick Start
 
