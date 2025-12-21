@@ -64,29 +64,79 @@ def init_model(model_path='emotion_model.h5'):
             model = create_emotion_model(input_shape=(48, 48, 1), num_classes=7)
             print("Untrained model structure created.")
         
-        # Load face cascade
-        cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        print(f"Looking for face cascade at: {cascade_path}")
+        # Load face cascade - try multiple methods
+        cascade_path = None
+        face_cascade = None
         
-        if not os.path.exists(cascade_path):
-            # Try alternative path
-            alt_path = '/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml'
-            if os.path.exists(alt_path):
-                cascade_path = alt_path
-                print(f"Using alternative cascade path: {cascade_path}")
-            else:
-                raise FileNotFoundError(f"Face cascade not found at {cascade_path} or {alt_path}")
+        # Method 1: Try OpenCV's built-in path (most common)
+        try:
+            default_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            print(f"Trying default cascade path: {default_path}")
+            face_cascade = cv2.CascadeClassifier(default_path)
+            if not face_cascade.empty():
+                cascade_path = default_path
+                print("Successfully loaded cascade from default path")
+        except Exception as e:
+            print(f"Default path failed: {e}")
         
-        face_cascade = cv2.CascadeClassifier(cascade_path)
+        # Method 2: Try alternative system paths if default failed
+        if face_cascade is None or face_cascade.empty():
+            alt_paths = [
+                '/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml',
+                '/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_default.xml',
+                '/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml'
+            ]
+            
+            for alt_path in alt_paths:
+                try:
+                    print(f"Trying alternative path: {alt_path}")
+                    if os.path.exists(alt_path):
+                        test_cascade = cv2.CascadeClassifier(alt_path)
+                        if not test_cascade.empty():
+                            face_cascade = test_cascade
+                            cascade_path = alt_path
+                            print(f"Successfully loaded cascade from: {cascade_path}")
+                            break
+                except Exception as e:
+                    print(f"Alternative path {alt_path} failed: {e}")
+                    continue
         
-        # Verify cascade loaded correctly
-        if face_cascade.empty():
-            raise ValueError(f"Failed to load face cascade from {cascade_path}")
+        # Method 3: Search in Python package locations
+        if face_cascade is None or face_cascade.empty():
+            try:
+                import site
+                for site_package in site.getsitepackages():
+                    test_path = os.path.join(site_package, 'cv2', 'data', 'haarcascade_frontalface_default.xml')
+                    if os.path.exists(test_path):
+                        print(f"Trying package path: {test_path}")
+                        test_cascade = cv2.CascadeClassifier(test_path)
+                        if not test_cascade.empty():
+                            face_cascade = test_cascade
+                            cascade_path = test_path
+                            print(f"Successfully loaded cascade from package: {cascade_path}")
+                            break
+            except Exception as e:
+                print(f"Package search failed: {e}")
+        
+        # Final check
+        if face_cascade is None or face_cascade.empty():
+            error_msg = (
+                f"Failed to load face cascade classifier. Tried:\n"
+                f"  - {cv2.data.haarcascades}haarcascade_frontalface_default.xml\n"
+                f"  - /usr/share/opencv4/haarcascades/\n"
+                f"  - /usr/local/share/opencv4/haarcascades/\n"
+                f"  - /usr/share/opencv/haarcascades/\n"
+                f"  - Python package locations\n\n"
+                f"Please ensure opencv-python-headless is properly installed."
+            )
+            raise FileNotFoundError(error_msg)
         
         print("Model and face cascade loaded successfully!")
         
     except Exception as e:
         print(f"ERROR initializing model: {e}")
+        import traceback
+        traceback.print_exc()
         raise
 
 
@@ -267,15 +317,35 @@ def detect_emotion():
 @app.route('/api/health', methods=['GET'])
 def health():
     """Health check endpoint to verify model and face cascade are loaded."""
+    import cv2
+    
     status = {
         'status': 'ok',
         'model_loaded': model is not None,
         'face_cascade_loaded': face_cascade is not None,
-        'model_path_exists': os.path.exists('emotion_model.h5')
+        'model_path_exists': os.path.exists('emotion_model.h5'),
+        'opencv_version': cv2.__version__,
+        'opencv_data_path': cv2.data.haarcascades if hasattr(cv2, 'data') else 'N/A'
     }
     
     if face_cascade is not None:
         status['face_cascade_empty'] = face_cascade.empty()
+    
+    # Check if cascade file exists in common locations
+    cascade_locations = {
+        'default': cv2.data.haarcascades + 'haarcascade_frontalface_default.xml' if hasattr(cv2, 'data') else None,
+        'opencv4_usr': '/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml',
+        'opencv4_local': '/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_default.xml',
+        'opencv_usr': '/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml'
+    }
+    
+    status['cascade_file_locations'] = {}
+    for name, path in cascade_locations.items():
+        if path:
+            status['cascade_file_locations'][name] = {
+                'path': path,
+                'exists': os.path.exists(path) if path else False
+            }
     
     return jsonify(status)
 
@@ -545,7 +615,7 @@ except Exception as e:
     print(f"WARNING: Failed to initialize model on startup: {e}")
     print("Model will be initialized on first request.")
 
-
+    
 if __name__ == '__main__':
     # Get port and host from environment variables (for production deployment)
     port = int(os.environ.get('PORT', 5000))
