@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaceTune - Emotion-Based Music Player</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="title">FaceTune</h1>
+            <p class="subtitle">Emotion-Based Music Player</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Camera Section -->
+            <section class="camera-section">
+                <div class="camera-container">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <div class="camera-overlay">
+                        <div id="emotion-display" class="emotion-display">
+                            <div class="emotion-label">No Face Detected</div>
+                            <div class="emotion-confidence"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button id="start-camera" class="btn btn-primary">Start Camera</button>
+                    <button id="stop-camera" class="btn btn-secondary" disabled>Stop Camera</button>
+                </div>
+            </section>
+
+            <!-- Music Player Section -->
+            <section class="music-section">
+                <div class="music-player">
+                    <div class="player-header">
+                        <h2>Now Playing</h2>
+                        <div id="current-emotion" class="current-emotion">Waiting for emotion...</div>
+                    </div>
+                    <div class="player-controls">
+                        <audio id="audio-player" controls style="width: 100%;"></audio>
+                    </div>
+                    <div class="player-info">
+                        <div id="current-track" class="track-name">No track selected</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Music Management Section -->
+            <section class="music-management">
+                <div class="tabs">
+                    <button class="tab-btn active" data-emotion="Happy">Happy</button>
+                    <button class="tab-btn" data-emotion="Sad">Sad</button>
+                    <button class="tab-btn" data-emotion="Angry">Angry</button>
+                    <button class="tab-btn" data-emotion="Fear">Fear</button>
+                    <button class="tab-btn" data-emotion="Surprise">Surprise</button>
+                    <button class="tab-btn" data-emotion="Disgust">Disgust</button>
+                    <button class="tab-btn" data-emotion="Neutral">Neutral</button>
+                </div>
+
+                <div class="tab-content">
+                    <div class="upload-section">
+                        <h3>Add Music to <span id="current-category">Happy</span></h3>
+                        
+                        <!-- YouTube Search Section -->
+                        <div class="search-section">
+                            <div class="search-container">
+                                <input 
+                                    type="text" 
+                                    id="youtube-search-input" 
+                                    class="search-input" 
+                                    placeholder="Search YouTube for music..."
+                                    autocomplete="off"
+                                />
+                                <button id="search-btn" class="btn btn-primary">Search</button>
+                            </div>
+                            <div id="search-results" class="search-results" style="display: none;">
+                                <h4>Search Results</h4>
+                                <div id="search-results-list" class="search-results-list"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- File Upload Section -->
+                        <div class="upload-divider">
+                            <span>OR</span>
+                        </div>
+                        <div class="upload-area">
+                            <input type="file" id="file-input" accept="audio/*" style="display: none;">
+                            <button id="upload-btn" class="btn btn-upload">
+                                <span>📁</span> Upload Audio File
+                            </button>
+                            <p class="upload-hint">Supported formats: MP3, WAV, OGG, M4A, FLAC</p>
+                        </div>
+                    </div>
+
+                    <div class="songs-list">
+                        <h3>Playlist</h3>
+                        <div id="songs-container" class="songs-container">
+                            <p class="loading">Loading songs...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
+

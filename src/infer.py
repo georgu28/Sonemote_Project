@@ -64,6 +64,7 @@ def apply_emotion_weights(predictions):
     """
     Apply weighting to emotion predictions to favor harder-to-detect emotions.
     Increases weights for: Sad, Fear, Disgust
+    Decreases weight for: Neutral
     
     Args:
         predictions: Raw prediction array (1, 7) or (7,)
@@ -72,8 +73,8 @@ def apply_emotion_weights(predictions):
         Weighted predictions (same shape as input)
     """
     # Emotion order: ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
-    # Weight multipliers: increase Sad (index 4), Fear (index 2), Disgust (index 1)
-    weight_multipliers = np.array([0.8, 2.0, 1.5, 1.0, 1.8, 1.0, 0.8])  # Boost Sad, Fear, Disgust
+    # Weight multipliers: increase Disgust (index 1), decrease Neutral (index 6)
+    weight_multipliers = np.array([0.7, 3.0, 1.8, 0.5, 2.0, 1.0, 0.3])  
     
     # Ensure predictions is numpy array
     predictions = np.array(predictions)
