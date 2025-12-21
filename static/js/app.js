@@ -12,6 +12,11 @@ class SonemoteApp {
         this.currentEmotionCategory = 'Happy';
         this.audioPlayer = document.getElementById('audio-player');
         
+        // Emotion change delay tracking
+        this.pendingEmotion = null;
+        this.pendingEmotionTimeout = null;
+        this.emotionChangeDelay = 1000; // 1 second delay
+        
         this.init();
     }
 
@@ -125,6 +130,13 @@ class SonemoteApp {
             this.detectionInterval = null;
         }
         this.isDetecting = false;
+        
+        // Clear any pending emotion change
+        if (this.pendingEmotionTimeout) {
+            clearTimeout(this.pendingEmotionTimeout);
+            this.pendingEmotionTimeout = null;
+            this.pendingEmotion = null;
+        }
     }
 
     detectEmotion() {
@@ -161,13 +173,45 @@ class SonemoteApp {
             if (data.face_detected && data.emotion) {
                 this.updateEmotionDisplay(data.emotion, data.confidence);
                 
-                // Update current emotion and play music if changed
+                // Handle emotion change with 1 second delay
                 if (data.emotion !== this.currentEmotion) {
-                    this.currentEmotion = data.emotion;
-                    this.onEmotionChange(data.emotion);
+                    // If there's a different pending emotion, cancel it
+                    if (this.pendingEmotion !== data.emotion) {
+                        if (this.pendingEmotionTimeout) {
+                            clearTimeout(this.pendingEmotionTimeout);
+                            this.pendingEmotionTimeout = null;
+                        }
+                        
+                        // Set new pending emotion
+                        this.pendingEmotion = data.emotion;
+                        
+                        // Wait 1 second before actually changing
+                        this.pendingEmotionTimeout = setTimeout(() => {
+                            // Only change if the pending emotion is still valid and different from current
+                            if (this.pendingEmotion && this.pendingEmotion !== this.currentEmotion) {
+                                this.currentEmotion = this.pendingEmotion;
+                                this.onEmotionChange(this.pendingEmotion);
+                            }
+                            this.pendingEmotion = null;
+                            this.pendingEmotionTimeout = null;
+                        }, this.emotionChangeDelay);
+                    }
+                } else {
+                    // Same emotion detected - cancel any pending change
+                    if (this.pendingEmotionTimeout) {
+                        clearTimeout(this.pendingEmotionTimeout);
+                        this.pendingEmotionTimeout = null;
+                        this.pendingEmotion = null;
+                    }
                 }
             } else {
                 this.updateEmotionDisplay('No Face Detected', 0);
+                // Cancel pending emotion change if no face detected
+                if (this.pendingEmotionTimeout) {
+                    clearTimeout(this.pendingEmotionTimeout);
+                    this.pendingEmotionTimeout = null;
+                    this.pendingEmotion = null;
+                }
             }
         })
         .catch(error => {

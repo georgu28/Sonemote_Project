@@ -52,8 +52,7 @@ def create_mock_predictions():
     
     def mock_predict(processed_face):
         # Generate random predictions with bias
-        # Weight sadness, fear, and disgust more heavily (they're harder to trigger)
-        weights = np.array([0.07, 0.23, 0.23, 0.1, 0.22, 0.1, 0.05])  # Higher weights for Sad, Fear, Disgust
+        weights = np.array([0.09, 0.20, 0.20, 0.04, 0.22, 0.1, 0.05])
         predictions = np.random.dirichlet(weights * 10)  # Scale for more confidence
         return predictions.reshape(1, -1)
     
