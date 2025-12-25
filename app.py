@@ -241,25 +241,63 @@ def detect_emotion_from_image(image_data):
         
         # Detect faces - ensure face_cascade is valid
         if face_cascade is None:
+            print("ERROR: face_cascade is None in detect_emotion_from_image")
             return {'error': 'Face cascade not initialized', 'face_detected': False}
         
+        # Log image info for debugging
+        print(f"DEBUG: Image shape: {frame.shape}, Grayscale shape: {gray.shape}")
+        print(f"DEBUG: Face cascade empty check: {face_cascade.empty()}")
+        
         try:
+            # Use more lenient parameters for better detection
+            # Lower scaleFactor = more thorough search (slower but better)
+            # Lower minNeighbors = more detections (may include false positives)
+            # Smaller minSize = detect smaller faces
             faces = face_cascade.detectMultiScale(
                 gray,
-                scaleFactor=1.1,
-                minNeighbors=5,
-                minSize=(30, 30)
+                scaleFactor=1.05,  # More thorough (was 1.1)
+                minNeighbors=3,     # More lenient (was 5)
+                minSize=(20, 20),   # Smaller faces (was 30, 30)
+                flags=cv2.CASCADE_SCALE_IMAGE
             )
+            print(f"DEBUG: Detected {len(faces)} face(s)")
         except Exception as e:
-            print(f"Error in face detection: {e}")
+            print(f"ERROR in face detection: {e}")
+            import traceback
+            traceback.print_exc()
             return {'error': f'Face detection error: {str(e)}', 'face_detected': False}
         
         if len(faces) == 0:
-            return {
-                'emotion': None,
-                'confidence': 0.0,
-                'face_detected': False
-            }
+            print("DEBUG: No faces detected. Image stats - min:", gray.min(), "max:", gray.max(), "mean:", gray.mean())
+            # Try with even more lenient parameters as fallback
+            try:
+                print("DEBUG: Trying fallback detection with more lenient parameters...")
+                faces = face_cascade.detectMultiScale(
+                    gray,
+                    scaleFactor=1.03,
+                    minNeighbors=2,
+                    minSize=(15, 15),
+                    flags=cv2.CASCADE_SCALE_IMAGE
+                )
+                print(f"DEBUG: Fallback detection found {len(faces)} face(s)")
+            except Exception as e2:
+                print(f"DEBUG: Fallback detection also failed: {e2}")
+            
+            if len(faces) == 0:
+                return {
+                    'emotion': None,
+                    'confidence': 0.0,
+                    'face_detected': False,
+                    'debug_info': {
+                        'image_shape': frame.shape,
+                        'gray_shape': gray.shape,
+                        'gray_stats': {
+                            'min': float(gray.min()),
+                            'max': float(gray.max()),
+                            'mean': float(gray.mean())
+                        }
+                    }
+                }
         
         # Process first face
         x, y, w, h = faces[0]
@@ -318,14 +356,25 @@ def detect_emotion():
     try:
         # Ensure model is initialized
         if model is None or face_cascade is None:
-            print("Model not initialized in detect_emotion endpoint. Initializing...")
+            print("WARNING: Model not initialized in detect_emotion endpoint. Initializing...")
+            print(f"DEBUG: model is None: {model is None}, face_cascade is None: {face_cascade is None}")
             try:
                 init_model()
+                print(f"DEBUG: After init - model is None: {model is None}, face_cascade is None: {face_cascade is None}")
+                if face_cascade is not None:
+                    print(f"DEBUG: face_cascade.empty(): {face_cascade.empty()}")
             except Exception as e:
-                print(f"Error initializing model in endpoint: {e}")
+                print(f"ERROR initializing model in endpoint: {e}")
                 import traceback
                 traceback.print_exc()
-                return jsonify({'error': f'Failed to initialize model: {str(e)}', 'face_detected': False}), 500
+                return jsonify({
+                    'error': f'Failed to initialize model: {str(e)}', 
+                    'face_detected': False,
+                    'debug': {
+                        'model_initialized': model is not None,
+                        'cascade_initialized': face_cascade is not None
+                    }
+                }), 500
         
         data = request.get_json()
         if not data:
@@ -335,14 +384,23 @@ def detect_emotion():
         if not image_data:
             return jsonify({'error': 'No image data provided'}), 400
         
+        print(f"DEBUG: Received image data, length: {len(image_data)}")
         result = detect_emotion_from_image(image_data)
+        print(f"DEBUG: Detection result - face_detected: {result.get('face_detected')}, error: {result.get('error')}")
         return jsonify(result)
     
     except Exception as e:
-        print(f"Error in detect_emotion endpoint: {e}")
+        print(f"ERROR in detect_emotion endpoint: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'error': str(e),
+            'face_detected': False,
+            'debug': {
+                'model_initialized': model is not None if 'model' in globals() else 'unknown',
+                'cascade_initialized': face_cascade is not None if 'face_cascade' in globals() else 'unknown'
+            }
+        }), 500
 
 
 @app.route('/api/health', methods=['GET'])
@@ -350,17 +408,38 @@ def health():
     """Health check endpoint to verify model and face cascade are loaded."""
     import cv2
     
+    # Try to reinitialize if not loaded
+    if model is None or face_cascade is None:
+        try:
+            print("Health check: Attempting to initialize model...")
+            init_model()
+        except Exception as e:
+            print(f"Health check: Initialization failed: {e}")
+    
     status = {
         'status': 'ok',
         'model_loaded': model is not None,
         'face_cascade_loaded': face_cascade is not None,
         'model_path_exists': os.path.exists('emotion_model.h5'),
         'opencv_version': cv2.__version__,
-        'opencv_data_path': cv2.data.haarcascades if hasattr(cv2, 'data') else 'N/A'
+        'opencv_data_path': cv2.data.haarcascades if hasattr(cv2, 'data') else 'N/A',
+        'working_directory': os.getcwd(),
+        'python_version': sys.version.split()[0]
     }
     
     if face_cascade is not None:
         status['face_cascade_empty'] = face_cascade.empty()
+        # Test if cascade can actually detect (with a simple test)
+        try:
+            test_img = np.zeros((100, 100), dtype=np.uint8)
+            test_faces = face_cascade.detectMultiScale(test_img)
+            status['cascade_functional'] = True
+        except Exception as e:
+            status['cascade_functional'] = False
+            status['cascade_error'] = str(e)
+    else:
+        status['face_cascade_empty'] = True
+        status['cascade_functional'] = False
     
     # Check if cascade file exists in common locations
     cascade_locations = {
@@ -379,6 +458,49 @@ def health():
             }
     
     return jsonify(status)
+
+
+@app.route('/api/test-face-detection', methods=['POST'])
+def test_face_detection():
+    """Test endpoint to debug face detection with a sample image."""
+    try:
+        # Create a simple test image with a face-like pattern
+        test_image = np.ones((200, 200, 3), dtype=np.uint8) * 128
+        gray_test = cv2.cvtColor(test_image, cv2.COLOR_BGR2GRAY)
+        
+        if face_cascade is None:
+            return jsonify({
+                'error': 'Face cascade not initialized',
+                'face_cascade_is_none': True
+            }), 500
+        
+        if face_cascade.empty():
+            return jsonify({
+                'error': 'Face cascade is empty',
+                'face_cascade_empty': True
+            }), 500
+        
+        # Try detection on test image
+        faces = face_cascade.detectMultiScale(
+            gray_test,
+            scaleFactor=1.1,
+            minNeighbors=3,
+            minSize=(20, 20)
+        )
+        
+        return jsonify({
+            'success': True,
+            'test_image_shape': test_image.shape,
+            'faces_detected': len(faces),
+            'cascade_loaded': not face_cascade.empty(),
+            'message': 'Face detection system is functional'
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 
 @app.route('/api/music/<emotion>', methods=['GET'])
