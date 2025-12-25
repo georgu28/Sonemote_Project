@@ -5,6 +5,11 @@ Provides web interface with camera feed and music management.
 
 import os
 import sys
+
+# Force TensorFlow to use CPU only (prevents CUDA errors on Railway)
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduce TensorFlow logging
+
 import cv2
 import numpy as np
 import base64
@@ -12,6 +17,29 @@ import re
 import shutil
 from flask import Flask, render_template, request, jsonify, send_file
 from flask_cors import CORS
+
+# Import TensorFlow after setting environment variables
+import tensorflow as tf
+# Configure TensorFlow to use CPU and reduce memory
+tf.config.set_visible_devices([], 'GPU')  # Disable GPU
+
+# Limit TensorFlow memory to prevent OOM errors
+try:
+    # Set memory growth for CPU (if supported)
+    physical_devices = tf.config.list_physical_devices('CPU')
+    # Limit memory allocation
+    tf.config.experimental.set_memory_growth(physical_devices[0], True) if physical_devices else None
+except:
+    pass
+
+# Set TensorFlow to use less memory
+try:
+    # Limit inter-op and intra-op parallelism to reduce memory
+    tf.config.threading.set_inter_op_parallelism_threads(2)
+    tf.config.threading.set_intra_op_parallelism_threads(2)
+except:
+    pass
+
 from tensorflow import keras
 from pathlib import Path
 import json
@@ -54,11 +82,25 @@ def init_model(model_path='emotion_model.h5'):
     global model, face_cascade
     
     try:
-        # Load model
+        # Load model with memory optimization
         if os.path.exists(model_path):
             print(f"Loading model from {model_path}...")
-            model = keras.models.load_model(model_path)
-            print("Model loaded successfully!")
+            # Load model with compile=False to reduce memory usage
+            # We'll compile only when needed
+            try:
+                model = keras.models.load_model(model_path, compile=False)
+                # Compile with minimal settings to reduce memory
+                model.compile(
+                    optimizer='adam',
+                    loss='categorical_crossentropy',
+                    metrics=['accuracy']
+                )
+                print("Model loaded successfully!")
+            except Exception as load_error:
+                print(f"Error loading model: {load_error}")
+                # Try loading without compilation
+                model = keras.models.load_model(model_path, compile=False)
+                print("Model loaded without compilation (will compile on first use)")
         else:
             print(f"WARNING: Model not found at {model_path}. Creating untrained model structure.")
             model = create_emotion_model(input_shape=(48, 48, 1), num_classes=7)
@@ -341,7 +383,29 @@ def detect_emotion_from_image(image_data):
         
         # Preprocess and predict
         processed_face = preprocess_face(face_roi)
-        predictions = model.predict(processed_face, verbose=0)
+        
+        # Use predict with minimal memory footprint
+        try:
+            # Use __call__ instead of predict for lower memory usage
+            # This avoids creating a new computation graph
+            with tf.device('/CPU:0'):  # Explicitly use CPU
+                predictions = model(processed_face, training=False)
+                # Convert to numpy if needed
+                if hasattr(predictions, 'numpy'):
+                    predictions = predictions.numpy()
+                else:
+                    predictions = np.array(predictions)
+        except Exception as predict_error:
+            print(f"ERROR in model prediction: {predict_error}")
+            import traceback
+            traceback.print_exc()
+            # If prediction fails, return error but keep face_detected=True
+            return {
+                'emotion': None,
+                'confidence': 0.0,
+                'face_detected': True,
+                'error': f'Prediction failed: {str(predict_error)}'
+            }
         
         # Apply weighting to favor harder-to-detect emotions (Disgust) and reduce Neutral
         predictions = apply_emotion_weights(predictions)
