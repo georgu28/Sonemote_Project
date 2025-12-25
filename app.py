@@ -213,7 +213,14 @@ def detect_emotion_from_image(image_data):
         # Ensure model and face_cascade are initialized
         if model is None or face_cascade is None:
             print("Model or face_cascade not initialized. Initializing now...")
-            init_model()
+            try:
+                init_model()
+            except Exception as e:
+                print(f"Error during lazy initialization: {e}")
+                import traceback
+                traceback.print_exc()
+                return {'error': f'Failed to initialize model or face cascade: {str(e)}', 'face_detected': False}
+            
             if model is None or face_cascade is None:
                 return {'error': 'Failed to initialize model or face cascade', 'face_detected': False}
         
@@ -232,13 +239,20 @@ def detect_emotion_from_image(image_data):
         # Convert to grayscale for face detection
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # Detect faces
-        faces = face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(30, 30)
-        )
+        # Detect faces - ensure face_cascade is valid
+        if face_cascade is None:
+            return {'error': 'Face cascade not initialized', 'face_detected': False}
+        
+        try:
+            faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(30, 30)
+            )
+        except Exception as e:
+            print(f"Error in face detection: {e}")
+            return {'error': f'Face detection error: {str(e)}', 'face_detected': False}
         
         if len(faces) == 0:
             return {
@@ -287,6 +301,17 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/test', methods=['GET'])
+def test():
+    """Simple test endpoint to verify app is running."""
+    return jsonify({
+        'status': 'ok',
+        'message': 'App is running',
+        'model_initialized': model is not None,
+        'face_cascade_initialized': face_cascade is not None
+    })
+
+
 @app.route('/api/detect-emotion', methods=['POST'])
 def detect_emotion():
     """API endpoint for emotion detection."""
@@ -294,7 +319,13 @@ def detect_emotion():
         # Ensure model is initialized
         if model is None or face_cascade is None:
             print("Model not initialized in detect_emotion endpoint. Initializing...")
-            init_model()
+            try:
+                init_model()
+            except Exception as e:
+                print(f"Error initializing model in endpoint: {e}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({'error': f'Failed to initialize model: {str(e)}', 'face_detected': False}), 500
         
         data = request.get_json()
         if not data:
@@ -609,11 +640,24 @@ def download_youtube():
 
 # Initialize model when module is imported (works with gunicorn too)
 # This ensures the model is loaded before any requests are handled
+# But we catch errors so the app can still start
 try:
+    print("="*60)
+    print("Initializing Sonemote application...")
+    print("="*60)
     init_model()
+    print("="*60)
+    print("Application initialized successfully!")
+    print("="*60)
 except Exception as e:
+    print("="*60)
     print(f"WARNING: Failed to initialize model on startup: {e}")
+    print("="*60)
+    import traceback
+    traceback.print_exc()
+    print("="*60)
     print("Model will be initialized on first request.")
+    print("="*60)
 
     
 if __name__ == '__main__':
