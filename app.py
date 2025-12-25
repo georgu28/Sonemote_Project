@@ -229,12 +229,32 @@ def detect_emotion_from_image(image_data):
             image_data = image_data.split(',')[1]
         
         # Decode base64 image
-        image_bytes = base64.b64decode(image_data)
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if frame is None:
-            return {'error': 'Could not decode image', 'face_detected': False}
+        try:
+            image_bytes = base64.b64decode(image_data)
+            print(f"DEBUG: Decoded image bytes, size: {len(image_bytes)} bytes")
+            nparr = np.frombuffer(image_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if frame is None:
+                print("ERROR: cv2.imdecode returned None - image format may be invalid")
+                # Try to get more info about the image
+                print(f"DEBUG: Image bytes length: {len(image_bytes)}")
+                print(f"DEBUG: First 20 bytes (hex): {image_bytes[:20].hex()}")
+                # Check if it's a valid image format
+                if image_bytes[:4] == b'\x89PNG':
+                    print("DEBUG: Detected PNG format")
+                elif image_bytes[:2] == b'\xff\xd8':
+                    print("DEBUG: Detected JPEG format")
+                else:
+                    print(f"DEBUG: Unknown image format, first bytes: {image_bytes[:10]}")
+                return {'error': 'Could not decode image - invalid format', 'face_detected': False}
+            
+            print(f"DEBUG: Successfully decoded image, shape: {frame.shape}")
+        except Exception as decode_error:
+            print(f"ERROR decoding image: {decode_error}")
+            import traceback
+            traceback.print_exc()
+            return {'error': f'Image decode error: {str(decode_error)}', 'face_detected': False}
         
         # Convert to grayscale for face detection
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -247,6 +267,22 @@ def detect_emotion_from_image(image_data):
         # Log image info for debugging
         print(f"DEBUG: Image shape: {frame.shape}, Grayscale shape: {gray.shape}")
         print(f"DEBUG: Face cascade empty check: {face_cascade.empty()}")
+        print(f"DEBUG: Image dimensions - width: {frame.shape[1]}, height: {frame.shape[0]}")
+        
+        # Check if image is too small
+        if frame.shape[0] < 50 or frame.shape[1] < 50:
+            print(f"WARNING: Image is very small: {frame.shape}")
+        
+        # Check image quality
+        gray_mean = gray.mean()
+        gray_std = gray.std()
+        print(f"DEBUG: Grayscale stats - mean: {gray_mean:.2f}, std: {gray_std:.2f}, min: {gray.min()}, max: {gray.max()}")
+        
+        # Warn if image is too dark or too bright (might affect detection)
+        if gray_mean < 30:
+            print("WARNING: Image appears very dark (mean < 30)")
+        elif gray_mean > 225:
+            print("WARNING: Image appears very bright (mean > 225)")
         
         try:
             # Use more lenient parameters for better detection
@@ -339,14 +375,15 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/test', methods=['GET'])
+@app.route('/test', methods=['GET', 'POST'])
 def test():
     """Simple test endpoint to verify app is running."""
     return jsonify({
         'status': 'ok',
         'message': 'App is running',
         'model_initialized': model is not None,
-        'face_cascade_initialized': face_cascade is not None
+        'face_cascade_initialized': face_cascade is not None,
+        'method': request.method
     })
 
 
@@ -385,8 +422,16 @@ def detect_emotion():
             return jsonify({'error': 'No image data provided'}), 400
         
         print(f"DEBUG: Received image data, length: {len(image_data)}")
+        print(f"DEBUG: Image data preview (first 100 chars): {image_data[:100]}")
+        
         result = detect_emotion_from_image(image_data)
-        print(f"DEBUG: Detection result - face_detected: {result.get('face_detected')}, error: {result.get('error')}")
+        
+        print(f"DEBUG: Detection result - face_detected: {result.get('face_detected')}")
+        print(f"DEBUG: Detection result - emotion: {result.get('emotion')}")
+        print(f"DEBUG: Detection result - error: {result.get('error')}")
+        if 'debug_info' in result:
+            print(f"DEBUG: Debug info: {result.get('debug_info')}")
+        
         return jsonify(result)
     
     except Exception as e:
@@ -460,14 +505,10 @@ def health():
     return jsonify(status)
 
 
-@app.route('/api/test-face-detection', methods=['POST'])
+@app.route('/api/test-face-detection', methods=['GET', 'POST'])
 def test_face_detection():
-    """Test endpoint to debug face detection with a sample image."""
+    """Test endpoint to debug face detection."""
     try:
-        # Create a simple test image with a face-like pattern
-        test_image = np.ones((200, 200, 3), dtype=np.uint8) * 128
-        gray_test = cv2.cvtColor(test_image, cv2.COLOR_BGR2GRAY)
-        
         if face_cascade is None:
             return jsonify({
                 'error': 'Face cascade not initialized',
@@ -480,19 +521,52 @@ def test_face_detection():
                 'face_cascade_empty': True
             }), 500
         
-        # Try detection on test image
-        faces = face_cascade.detectMultiScale(
-            gray_test,
-            scaleFactor=1.1,
-            minNeighbors=3,
-            minSize=(20, 20)
-        )
+        # If POST, try to detect from provided image
+        if request.method == 'POST':
+            data = request.get_json()
+            if data and 'image' in data:
+                image_data = data.get('image')
+                result = detect_emotion_from_image(image_data)
+                return jsonify({
+                    'success': True,
+                    'detection_result': result,
+                    'cascade_loaded': not face_cascade.empty()
+                })
+        
+        # GET request - create a simple test image
+        test_image = np.ones((200, 200, 3), dtype=np.uint8) * 128
+        gray_test = cv2.cvtColor(test_image, cv2.COLOR_BGR2GRAY)
+        
+        # Try detection on test image with various parameters
+        results = {}
+        test_params = [
+            {'scaleFactor': 1.1, 'minNeighbors': 5, 'minSize': (30, 30), 'name': 'strict'},
+            {'scaleFactor': 1.05, 'minNeighbors': 3, 'minSize': (20, 20), 'name': 'moderate'},
+            {'scaleFactor': 1.03, 'minNeighbors': 2, 'minSize': (15, 15), 'name': 'lenient'}
+        ]
+        
+        for params in test_params:
+            try:
+                faces = face_cascade.detectMultiScale(
+                    gray_test,
+                    scaleFactor=params['scaleFactor'],
+                    minNeighbors=params['minNeighbors'],
+                    minSize=params['minSize'],
+                    flags=cv2.CASCADE_SCALE_IMAGE
+                )
+                results[params['name']] = {
+                    'faces_detected': len(faces),
+                    'params': params
+                }
+            except Exception as e:
+                results[params['name']] = {'error': str(e)}
         
         return jsonify({
             'success': True,
             'test_image_shape': test_image.shape,
-            'faces_detected': len(faces),
             'cascade_loaded': not face_cascade.empty(),
+            'cascade_empty': face_cascade.empty(),
+            'test_results': results,
             'message': 'Face detection system is functional'
         })
     except Exception as e:
