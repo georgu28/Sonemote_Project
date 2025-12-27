@@ -165,72 +165,30 @@ class SonemoteApp {
         })
         .then(response => response.json())
         .then(data => {
-            console.log('Detection response:', data);
-            
             if (data.error) {
                 console.error('Detection error:', data.error);
-                // Still show face if detected but prediction failed
-                if (data.face_detected) {
-                    this.updateEmotionDisplay('Face Detected (Processing...)', 0);
-                }
                 return;
             }
             
-            // Show face detected even if emotion is not available yet
-            if (data.face_detected) {
-                if (data.emotion) {
-                    this.updateEmotionDisplay(data.emotion, data.confidence);
-                    
-                    // Handle emotion change with 1 second delay
-                    if (data.emotion !== this.currentEmotion) {
-                        // If there's a different pending emotion, cancel it
-                        if (this.pendingEmotion !== data.emotion) {
-                            if (this.pendingEmotionTimeout) {
-                                clearTimeout(this.pendingEmotionTimeout);
-                                this.pendingEmotionTimeout = null;
-                            }
-                            
-                            // Set new pending emotion
-                            this.pendingEmotion = data.emotion;
-                            
-                            // Wait 1 second before actually changing
-                            this.pendingEmotionTimeout = setTimeout(() => {
-                                // Only change if the pending emotion is still valid and different from current
-                                if (this.pendingEmotion && this.pendingEmotion !== this.currentEmotion) {
-                                    this.currentEmotion = this.pendingEmotion;
-                                    this.updateEmotionDisplay(this.pendingEmotion, data.confidence);
-                                    this.onEmotionChange(this.pendingEmotion);
-                                }
-                                this.pendingEmotion = null;
-                                this.pendingEmotionTimeout = null;
-                            }, this.emotionChangeDelay);
+            if (data.face_detected && data.emotion) {
+                this.updateEmotionDisplay(data.emotion, data.confidence);
+                
+                // Handle emotion change with 1 second delay
+                if (data.emotion !== this.currentEmotion) {
+                    // If there's a different pending emotion, cancel it
+                    if (this.pendingEmotion !== data.emotion) {
+                        if (this.pendingEmotionTimeout) {
+                            clearTimeout(this.pendingEmotionTimeout);
+                            this.pendingEmotionTimeout = null;
                         }
-                    } else {
-                        // Same emotion - update immediately if no pending change
-                        if (!this.pendingEmotion) {
-                            this.currentEmotion = data.emotion;
-                            this.updateEmotionDisplay(data.emotion, data.confidence);
-                            this.onEmotionChange(data.emotion);
-                        }
-                    }
-                } else {
-                    // Face detected but no emotion (prediction might be in progress or failed)
-                    console.log('Face detected but emotion not available');
-                    if (!this.currentEmotion) {
-                        this.updateEmotionDisplay('Face Detected', 0);
-                    }
-                }
-            } else {
-                // No face detected
-                this.clearPendingEmotion();
-                if (this.currentEmotion) {
-                    this.updateEmotionDisplay('No Face Detected', 0);
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Detection request failed:', error);
-        });
+                        
+                        // Set new pending emotion
+                        this.pendingEmotion = data.emotion;
+                        
+                        // Wait 1 second before actually changing
+                        this.pendingEmotionTimeout = setTimeout(() => {
+                            // Only change if the pending emotion is still valid and different from current
+                            if (this.pendingEmotion && this.pendingEmotion !== this.currentEmotion) {
                                 this.currentEmotion = this.pendingEmotion;
                                 this.onEmotionChange(this.pendingEmotion);
                             }

@@ -7,4 +7,4 @@ services:
       apt-get update
       apt-get install -y ffmpeg libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1
       pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 300 --worker-timeout 300 --preload --log-level info --access-logfile - --error-logfile -
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --log-level debug --access-logfile - --error-logfile -

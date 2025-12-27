@@ -6,7 +6,7 @@ Provides web interface with camera feed and music management.
 import os
 import sys
 
-# Force TensorFlow to use CPU only (prevents CUDA errors on Render/Railway)
+# Force TensorFlow to use CPU only (prevents CUDA errors on Railway)
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduce TensorFlow logging
 
@@ -55,7 +55,6 @@ CORS(app)
 # Global variables
 model = None
 face_cascade = None
-_initialization_lock = None  # Will be set to threading.Lock() when needed
 emotion_labels = {
     0: 'Angry',
     1: 'Disgust',
@@ -81,11 +80,6 @@ EMOTION_FOLDERS = {
 def init_model(model_path='emotion_model.h5'):
     """Initialize the emotion detection model."""
     global model, face_cascade
-    
-    # Skip if already initialized
-    if model is not None and face_cascade is not None:
-        print("Model and cascade already initialized, skipping...")
-        return
     
     try:
         # Load model with memory optimization
@@ -388,56 +382,44 @@ def detect_emotion_from_image(image_data):
         face_roi = frame[y:y+h, x:x+w]
         
         # Preprocess and predict
-        print(f"DEBUG: Processing face ROI, shape: {face_roi.shape}")
         processed_face = preprocess_face(face_roi)
-        print(f"DEBUG: Processed face shape: {processed_face.shape}")
         
         # Use predict with minimal memory footprint
         try:
-            print("DEBUG: Starting model prediction...")
             # Use __call__ instead of predict for lower memory usage
             # This avoids creating a new computation graph
             with tf.device('/CPU:0'):  # Explicitly use CPU
                 predictions = model(processed_face, training=False)
-                print("DEBUG: Model prediction completed")
                 # Convert to numpy if needed
                 if hasattr(predictions, 'numpy'):
                     predictions = predictions.numpy()
                 else:
                     predictions = np.array(predictions)
-                print(f"DEBUG: Predictions shape: {predictions.shape}, values: {predictions}")
         except Exception as predict_error:
             print(f"ERROR in model prediction: {predict_error}")
             import traceback
             traceback.print_exc()
-            # If prediction fails, return with face_detected but no emotion
+            # If prediction fails, return error but keep face_detected=True
             return {
                 'emotion': None,
                 'confidence': 0.0,
                 'face_detected': True,
-                'error': f'Prediction failed: {str(predict_error)}',
-                'face_box': {'x': int(x), 'y': int(y), 'w': int(w), 'h': int(h)}
+                'error': f'Prediction failed: {str(predict_error)}'
             }
         
-        print("DEBUG: Applying emotion weights...")
         # Apply weighting to favor harder-to-detect emotions (Disgust) and reduce Neutral
         predictions = apply_emotion_weights(predictions)
-        print(f"DEBUG: Weighted predictions: {predictions}")
         
         # Get emotion with highest confidence
         emotion_idx = np.argmax(predictions[0])
         confidence = float(predictions[0][emotion_idx])
         emotion = emotion_labels[emotion_idx]
         
-        print(f"DEBUG: Detected emotion: {emotion}, confidence: {confidence:.4f}")
-        
         # Get all emotion probabilities
         emotion_probs = {
             emotion_labels[i]: float(predictions[0][i])
             for i in range(len(emotion_labels))
         }
-        
-        print(f"DEBUG: Returning result - face_detected: True, emotion: {emotion}")
         
         return {
             'emotion': emotion,
@@ -532,14 +514,19 @@ def detect_emotion():
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    """Health check endpoint - lightweight, doesn't require model initialization."""
+    """Health check endpoint to verify model and face cascade are loaded."""
     import cv2
     
-    # Lightweight health check - don't initialize model here to avoid timeouts
-    # Only initialize if explicitly requested via ?init=true parameter
+    # Try to reinitialize if not loaded
+    if model is None or face_cascade is None:
+        try:
+            print("Health check: Attempting to initialize model...")
+            init_model()
+        except Exception as e:
+            print(f"Health check: Initialization failed: {e}")
+    
     status = {
         'status': 'ok',
-        'app': 'running',
         'model_loaded': model is not None,
         'face_cascade_loaded': face_cascade is not None,
         'model_path_exists': os.path.exists('emotion_model.h5'),
@@ -548,19 +535,6 @@ def health():
         'working_directory': os.getcwd(),
         'python_version': sys.version.split()[0]
     }
-    
-    # Only try to initialize if explicitly requested (for detailed diagnostics)
-    # Don't do this by default to avoid worker timeouts
-    if request.args.get('init') == 'true':
-        if model is None or face_cascade is None:
-            try:
-                print("Health check: Attempting to initialize model (requested)...")
-                init_model()
-                status['model_loaded'] = model is not None
-                status['face_cascade_loaded'] = face_cascade is not None
-            except Exception as e:
-                print(f"Health check: Initialization failed: {e}")
-                status['init_error'] = str(e)
     
     if face_cascade is not None:
         status['face_cascade_empty'] = face_cascade.empty()
@@ -924,13 +898,26 @@ def download_youtube():
         return jsonify({'error': str(e)}), 500
 
 
-# Lazy initialization - model will be loaded on first request
-# This prevents worker timeouts during startup on Render/Railway
-# The model is initialized in detect_emotion_from_image() when needed
-print("="*60)
-print("Sonemote application starting...")
-print("Model will be initialized on first emotion detection request.")
-print("="*60)
+# Initialize model when module is imported (works with gunicorn too)
+# This ensures the model is loaded before any requests are handled
+# But we catch errors so the app can still start
+try:
+    print("="*60)
+    print("Initializing Sonemote application...")
+    print("="*60)
+    init_model()
+    print("="*60)
+    print("Application initialized successfully!")
+    print("="*60)
+except Exception as e:
+    print("="*60)
+    print(f"WARNING: Failed to initialize model on startup: {e}")
+    print("="*60)
+    import traceback
+    traceback.print_exc()
+    print("="*60)
+    print("Model will be initialized on first request.")
+    print("="*60)
 
     
 if __name__ == '__main__':

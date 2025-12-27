@@ -45,22 +45,19 @@ Before deploying, ensure you have:
      - `FFMPEG_LOCATION`: `/usr/bin/ffmpeg` (if FFmpeg is installed)
      - `PORT`: Render sets this automatically
 
-5. **Install FFmpeg and Dependencies on Render**
+5. **Install FFmpeg on Render**
    - Render doesn't include FFmpeg by default
-   - The `render.yaml` file in the repo is already configured:
+   - Add a `render.yaml` file to your repo:
    ```yaml
    services:
      - type: web
        name: sonemote-app
        env: python
-       plan: free
        buildCommand: |
-         apt-get update
-         apt-get install -y ffmpeg libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1
+         apt-get update && apt-get install -y ffmpeg
          pip install -r requirements.txt
-       startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 --preload --log-level info --access-logfile - --error-logfile -
+       startCommand: python app.py
    ```
-   - This installs FFmpeg and OpenCV dependencies, and uses Gunicorn with optimized settings
    - Or use a Dockerfile (see Option 5)
 
 6. **Deploy**
