@@ -81,6 +81,11 @@ def init_model(model_path='emotion_model.h5'):
     """Initialize the emotion detection model."""
     global model, face_cascade
     
+    # Resolve model path relative to app.py location (for Vercel compatibility)
+    if not os.path.isabs(model_path):
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(app_dir, model_path)
+    
     try:
         # Load model with memory optimization
         if os.path.exists(model_path):
