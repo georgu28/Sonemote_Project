@@ -52,7 +52,7 @@ def create_mock_predictions():
     
     def mock_predict(processed_face):
         # Generate random predictions with bias
-        weights = np.array([0.08, 0.23, 0.26, 0.02, 0.21, 0.08, 0.18])
+        weights = np.array([0.08, 0.30, 0.30, 0.02, 0.21, 0.08, 0.18])
         predictions = np.random.dirichlet(weights * 10)  # Scale for more confidence
         return predictions.reshape(1, -1)
     

@@ -68,11 +68,21 @@ Supported formats: MP3, WAV, OGG, M4A, FLAC
 
 ### 5. Run the Application
 
+pyth**Option A: Web Application (Flask)**
+
+```bash
+python app.py
+```
+
+Then open your browser to: `http://localhost:5000`
+
+**Option B: Command Line Interface**
+
 ```bash
 python src/infer.py
 ```
 
-**Controls:**
+**Controls (CLI):**
 - `q` - Quit
 - `p` - Pause/Resume music
 - `+` - Increase volume
