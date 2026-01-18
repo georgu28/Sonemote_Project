@@ -327,15 +327,15 @@ def detect_emotion_from_image(image_data):
             print("WARNING: Image appears very bright (mean > 225)")
         
         try:
-            # Use more lenient parameters for better detection
-            # Lower scaleFactor = more thorough search (slower but better)
-            # Lower minNeighbors = more detections (may include false positives)
-            # Smaller minSize = detect smaller faces
+            # Use balanced parameters for face detection
+            # scaleFactor: 1.1 is standard (faster), 1.05 is more thorough (slower)
+            # minNeighbors: Higher = fewer false positives but might miss faces
+            # minSize: Minimum face size in pixels
             faces = face_cascade.detectMultiScale(
                 gray,
-                scaleFactor=1.05,  # More thorough (was 1.1)
-                minNeighbors=3,     # More lenient (was 5)
-                minSize=(20, 20),   # Smaller faces (was 30, 30)
+                scaleFactor=1.1,    # Standard (faster, still accurate)
+                minNeighbors=4,     # Balanced (fewer false positives than 3)
+                minSize=(30, 30),   # Standard minimum size
                 flags=cv2.CASCADE_SCALE_IMAGE
             )
             print(f"DEBUG: Detected {len(faces)} face(s)")
@@ -350,16 +350,23 @@ def detect_emotion_from_image(image_data):
             # Try with even more lenient parameters as fallback
             try:
                 print("DEBUG: Trying fallback detection with more lenient parameters...")
-                faces = face_cascade.detectMultiScale(
+                faces_fallback = face_cascade.detectMultiScale(
                     gray,
-                    scaleFactor=1.03,
-                    minNeighbors=2,
-                    minSize=(15, 15),
+                    scaleFactor=1.1,
+                    minNeighbors=4,
+                    minSize=(30, 30),
                     flags=cv2.CASCADE_SCALE_IMAGE
                 )
-                print(f"DEBUG: Fallback detection found {len(faces)} face(s)")
+                # Ensure faces_fallback is a valid numpy array before assigning
+                if isinstance(faces_fallback, np.ndarray) and len(faces_fallback) > 0:
+                    faces = faces_fallback
+                    print(f"DEBUG: Fallback detection found {len(faces)} face(s)")
+                else:
+                    faces = np.array([]).reshape(0, 4)
+                    print("DEBUG: Fallback detection found 0 faces")
             except Exception as e2:
                 print(f"DEBUG: Fallback detection also failed: {e2}")
+                faces = np.array([]).reshape(0, 4)
             
             if len(faces) == 0:
                 return {

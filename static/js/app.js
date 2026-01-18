@@ -152,8 +152,8 @@ class SonemoteApp {
         this.ctx.drawImage(this.video, -this.canvas.width, 0, this.canvas.width, this.canvas.height);
         this.ctx.restore();
         
-        // Convert to base64
-        const imageData = this.canvas.toDataURL('image/jpeg', 0.8);
+        // Convert to base64 with higher quality for better face detection
+        const imageData = this.canvas.toDataURL('image/jpeg', 0.95);
         
         // Send to backend
         fetch('/api/detect-emotion', {
